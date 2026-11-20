@@ -6,4 +6,6 @@ module.exports = {
   requestTimeoutMs: 10000,
   // Intervalo padrão de coleta em minutos
   defaultFetchIntervalMinutes: parseInt(process.env.FETCH_INTERVAL_MINUTES) || 5,
+  // Intervalo padrão de avaliação das notificações em minutos
+  defaultNotificationCheckMinutes: parseInt(process.env.NOTIFICATION_CHECK_INTERVAL_MINUTES) || 5,
 };

@@ -3,8 +3,11 @@ require('dotenv').config();
 const pool = require('./src/config/database');
 const GW2APIClient = require('./src/infrastructure/api/GW2APIClient');
 const PostgresPriceRepository = require('./src/infrastructure/database/repositories/PostgresPriceRepository');
+const MarketAlertRepository = require('./src/infrastructure/database/repositories/MarketAlertRepository');
 const PriceHistoryWorker = require('./src/workers/PriceHistoryWorker');
+const MarketNotificationWorker = require('./src/workers/MarketNotificationWorker');
 const MarketAnalyzer = require('./src/core/services/MarketAnalyzer');
+const MarketAlertService = require('./src/core/services/MarketAlertService');
 const createHttpServer = require('./src/api/httpServer');
 
 // IDs dos itens a monitorar — adicione ou remova conforme necessário.
@@ -26,9 +29,12 @@ async function main() {
 
   const apiClient = new GW2APIClient();
   const repository = new PostgresPriceRepository();
+  const alertRepository = new MarketAlertRepository();
   const marketAnalyzer = new MarketAnalyzer(repository);
+  const alertService = new MarketAlertService(alertRepository, repository);
   const worker = new PriceHistoryWorker(apiClient, repository, TARGET_ITEM_IDS);
-  const app = createHttpServer({ marketAnalyzer, worker });
+  const notificationWorker = new MarketNotificationWorker(alertService);
+  const app = createHttpServer({ marketAnalyzer, worker, alertService });
   const apiPort = parseInt(process.env.API_PORT || '3000');
 
   const server = app.listen(apiPort, () => {
@@ -36,11 +42,13 @@ async function main() {
   });
 
   worker.startPeriodicFetch();
+  notificationWorker.startPeriodicEvaluation();
 
   // Encerramento gracioso
   process.on('SIGTERM', () => {
     console.log('[App] Encerrando...');
     worker.stop();
+    notificationWorker.stop();
     server.close();
     pool.end();
   });
@@ -48,6 +56,7 @@ async function main() {
   process.on('SIGINT', () => {
     console.log('[App] Encerrando...');
     worker.stop();
+    notificationWorker.stop();
     server.close();
     pool.end();
   });

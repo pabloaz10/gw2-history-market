@@ -62,6 +62,37 @@ class MarketAnalyzer {
   }
 
   /**
+   * Analisa a tendência curta em uma janela menor, como 12 horas.
+   * @param {number[]} itemIds
+   * @param {number} hours
+   * @returns {Promise<Map<number, { direction: 'up'|'down'|'sideways', netChangePct: number, confidence: number }>>}
+   */
+  async analyzeShortTermTrend(itemIds, hours = 12) {
+    const since = new Date();
+    since.setHours(since.getHours() - hours);
+    const result = new Map();
+
+    for (const itemId of itemIds) {
+      const history = await this.priceRepository.getPriceHistory(itemId, since);
+      if (history.length < 2) continue;
+
+      history.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      const oldestRecord = history[0];
+      const currentRecord = history[history.length - 1];
+      const netChangePct = this._calculateGrowth(oldestRecord.sellPrice, currentRecord.sellPrice);
+
+      result.set(itemId, {
+        direction: this._calculateDirection(netChangePct),
+        netChangePct,
+        confidence: this._calculateConfidence(history.length, netChangePct),
+      });
+    }
+
+    return result;
+  }
+
+  /**
    * Cruza o inventário do jogador com as tendências de mercado e gera recomendações.
    * @param {import('../entities/InventoryItem')[]} inventory
    * @param {Trend[]} trends
@@ -96,6 +127,27 @@ class MarketAnalyzer {
   _calculateGrowth(oldPrice, currentPrice) {
     if (oldPrice === 0) return 0;
     return parseFloat((((currentPrice - oldPrice) / oldPrice) * 100).toFixed(2));
+  }
+
+  /**
+   * @param {number} netChangePct
+   * @returns {'up'|'down'|'sideways'}
+   */
+  _calculateDirection(netChangePct) {
+    if (netChangePct > 1) return 'up';
+    if (netChangePct < -1) return 'down';
+    return 'sideways';
+  }
+
+  /**
+   * @param {number} sampleSize
+   * @param {number} netChangePct
+   * @returns {number}
+   */
+  _calculateConfidence(sampleSize, netChangePct) {
+    const sampleScore = Math.min(60, sampleSize * 12);
+    const movementScore = Math.min(40, Math.abs(netChangePct) * 4);
+    return Math.max(0, Math.min(100, Math.round(sampleScore + movementScore)));
   }
 }
 

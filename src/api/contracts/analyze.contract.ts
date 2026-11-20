@@ -21,11 +21,18 @@ export interface TrendData {
 	lowestPriceAt: string;
 }
 
+export interface Trend12hData {
+	direction: 'up' | 'down' | 'sideways';
+	netChangePct: number;
+	confidence: number;
+}
+
 export interface RecommendationData {
 	itemId: number;
 	quantityOwned: number;
 	trendData: TrendData;
 	potentialProfit: number;
+	trend12h: Trend12hData;
 }
 
 export interface AnalyzeMeta {
